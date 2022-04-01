@@ -1375,3 +1375,36 @@ iptables -t nat -A PREROUTING -j MASQUERADE
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+kernel
+######################################################################
+// Linux x86_64 System V Calling convention
+rdi
+rsi
+rdx
+rcx
+r8
+r9
+
+I.E.:
+openat(int dirfd, char *pathname, int flags, umode_t mode)
+---> struct pt_regs *regs
+regs.rdi -> dirfd
+regs.rsi -> pathname
+regs.rdx -> flags
+regs.rcx -> mode
+
+// Kprobes - use to gain access to unexported symbols
+<BEGIN_CODE>
+unsigned long (*kallsyms_lookup_name)(const char *name);
+struct kprobe kp = {
+    .symbol_name = "kallsyms_lookup_name",
+};
+
+if (register_kprobe(&kp) < 0)
+    return NULL;
+kallsyms_lookup_name = (unsigned long (*)(const char *name))kp.addr;
+unregister_kprobe(&kp);
+<END_CODE>
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
