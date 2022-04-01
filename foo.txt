@@ -1406,5 +1406,8 @@ kallsyms_lookup_name = (unsigned long (*)(const char *name))kp.addr;
 unregister_kprobe(&kp);
 <END_CODE>
 
+// Interesting tidbits
+When using printk() or relatives, text without a newline will be buffered.
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
