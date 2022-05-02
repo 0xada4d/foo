@@ -1411,3 +1411,36 @@ When using printk() or relatives, text without a newline will be buffered.
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+reversing // reverse engineering
+######################################################################
+// calling conventions
+; fastcall: order of parameters
+RCX, RDC, R8, R9, RSP+0x20, RSP+0x28, ...
+XMM0, XMM1, XMM2, XMM3, STACK
+
+All parameters (including those passed via registers) have space created for them on the stack.
+In a function with MORE THAN FOUR PARAMETERS:
+    First 4 arguments passed via registers
+    Rest pushed to the stack beginning at RSP+0x20
+?? Hypothesis - beginning of function, SUB RSP,0x48 ->
+    0x48 / 8 gives you the number of parameters + 1? 
+
+Example: function(1, 2, 3, 4, 5, 6, 7, 8) ->
+"""
+MOV DWORD PTR SS:[RSP + 0x38], 0x8
+MOV DWORD PTR SS:[RSP + 0x30], 0x7
+MOV DWORD PTR SS:[RSP + 0x28], 0x6
+MOV DWORD PTR SS:[RSP + 0x20], 0x5
+MOV R9D, 0x4
+MOV R8D, 0x3
+MOV EDX, 0x2
+MOV ECX, 0x1
+CALL function
+"""
+
+Member functions have implicit "this" pointer always passed via RCX
+
+
+-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
