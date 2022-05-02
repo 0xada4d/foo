@@ -1440,6 +1440,22 @@ CALL function
 
 Member functions have implicit "this" pointer always passed via RCX
 
+Stack space allocated from bottom to top - higher addresses to lower addresses (upwards) - LIFO
+Data is put into this allocated space the opposite way, top to bottom, lower addresses to higher addresses.
+Example of Stack frame and order of data storage
+function() {
+stackVar1 = 1;
+stackVar2 = 2;
+stackArr[2] = { 3,4,5 };
+}
+Stack (space allocated) ->
+3. stackArr
+2. stackVar2
+1. stackVar1
+Stack (data stored) ->
+1. stackArr[2] = {3,4}
+2. stackVar2 = 5;    (overwritten b/c 3 values included for a 2 value array)
+3. stackVar1 = 1;
 
 -~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
