@@ -1415,7 +1415,7 @@ reversing // reverse engineering
 ######################################################################
 // calling conventions
 ; fastcall: order of parameters
-RCX, RDC, R8, R9, RSP+0x20, RSP+0x28, ...
+RCX, RDX, R8, R9, RSP+0x20, RSP+0x28, ...
 XMM0, XMM1, XMM2, XMM3, STACK
 
 All parameters (including those passed via registers) have space created for them on the stack.
@@ -1456,6 +1456,42 @@ Stack (data stored) ->
 1. stackArr[2] = {3,4}
 2. stackVar2 = 5;    (overwritten b/c 3 values included for a 2 value array)
 3. stackVar1 = 1;
+
+Potential clue: When RDI and RSI are set within a function, likely that they will be used in a loop,
+likely a loop that iterates over value in RSI.
+
+Keep an eye out for C++ classes containing virtual functions - the address of the Vtable will be the implied first data member of the class, so [&Class -> vtable]
+
+or EAX, 0FFFFFFFFh -> initialize a variable to -1.
+
+JA, JB, etc are used with UNSIGNED values.
+JG, JL, etc are used with SIGNED values.
+
+Consider disassembly containing a structure ptr in RCX
+If its accessing this structure directly, it will use RCX+[offset]
+        mov r10d, [rcx+20h]
+If its accessing a structure within this structure, it will use something to the effect of:
+        lea r8, [rcx+8]
+        mov r8, [r8+8]
+
+//MOV vs LEA
+mov edi, [ebp + 8] : go into memory and retrieve the value pointed to by [ebp + 8]
+lea eax, [ebp + 8] : calculate ebp + 8 and load that number into eax.
+
+//static functions
+A function that can only be called from functions within the same source file.
+- in this case, the compiler does not have to follow a calling convention, and 
+will generally avoid stack usage if possible. This means that non-standard registers
+can and will be used to pass parameters to functions
+
+// control flow guard
+guard_dispatch_icall_fptr : used in situations when code calls a function via an address.
+akin to: 
+call [rdi+28h]
+        Windows verifying that PTR is valid
+        Calls the address located in RAX
+
+arg_0 is an automatic label by IDA that lists the LAST param pushed before the call to this function
 
 -~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
