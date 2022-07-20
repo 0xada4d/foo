@@ -1495,4 +1495,20 @@ arg_0 is an automatic label by IDA that lists the LAST param pushed before the c
 
 -~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+malware analysis
+######################################################################
+//windows
+StartServiceCtrlDispatcher - used by a program to implement service, usually called immediately
+        necessary bookkeeping code for programs that run as services
+
+OpenMutex
+CreateMutex : malware ensuring that only one copy is running at a time
+
+SystemTimeToFileTime
+CreateWaitableTimer
+SetWaitableTimer
+WaitForSingleObject : malware setting a trigger time
+        look for the lpDueTime argument passed to SetWaittable - this is trigger time
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
